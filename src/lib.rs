@@ -253,7 +253,7 @@ mod test {
             }
         }
 
-        let data: Vec<u8> = vec![0,1,2,3,4,5];
+        let data: Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
 
         match spi_dev.transaction(data, None) {
             Ok(_) => Ok(()),
