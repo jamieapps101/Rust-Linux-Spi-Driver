@@ -109,17 +109,11 @@ impl SpiBus {
     pub fn new(bus_id: &str, delay_us: u16 , 
         speed_hz: u32, bits: WordLength, setup: SpiSetup) -> Result<SpiBus, BusError> {
         let dev_path = PathBuf::from(bus_id);
-        println!("dev_path: {:?}",dev_path);
         // check this is ok
         if !dev_path.exists() { return Err(BusError::DevicePathNotFound);}
-
-        // let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        // let a  = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap();
-        // println!("a: {:?}", a);
-        // let temp : *const u8 = a.clone().as_ptr();
-
+        
         let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        let temp = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
+        let path_string_with_null_ptr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
         
         // decode setup struct
         let mut encoded_mode : u8 = 0;
@@ -151,13 +145,9 @@ impl SpiBus {
             },
         }
 
-        println!("temp: {:?}", temp.clone());
-        println!("encoded_mode: {:?}", encoded_mode);
-        println!("encoded_mode: {:b}", encoded_mode);
-
+        let temp = path_string_with_null_ptr.clone();
         let op_result : u8 = unsafe {
-            // set_mode(temp.clone(), 4)
-            set_mode(temp.clone(), encoded_mode)
+            set_mode(temp, encoded_mode)
         };
         // todo assert this is correct result
         match op_result {
@@ -172,7 +162,7 @@ impl SpiBus {
             delay_us,
             speed_hz,
             bits,
-            path_cstr_ptr: Some(temp),
+            path_cstr_ptr: Some(path_string_with_null_ptr),
         });
     }
 
@@ -187,7 +177,9 @@ impl SpiBus {
         };
 
         let op_result : u8 = unsafe {
-            transfer_8_bit( dev_path_cstr,
+            transfer_8_bit( 
+                // self.path_cstr_ptr.unwrap(),
+                dev_path_cstr,
                 tx_data.as_ptr(), tx_data.len() as u32,
                 return_vec.as_mut_ptr(), max_rx_words_val,
                 self.delay_us, 
@@ -247,7 +239,7 @@ mod test {
     fn test_transfer_send() -> Result<(), String> {
         let setup = SpiSetup {
             spi_mode: SpiMode::SpiMode0,
-            cs_mode: CsMode::CsLow,
+            cs_mode: CsMode::CsHigh,
             bit_order: BitOrder::MSB,
         };
         
