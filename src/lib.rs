@@ -109,11 +109,17 @@ impl SpiBus {
     pub fn new(bus_id: &str, delay_us: u16 , 
         speed_hz: u32, bits: WordLength, setup: SpiSetup) -> Result<SpiBus, BusError> {
         let dev_path = PathBuf::from(bus_id);
+        println!("dev_path: {:?}",dev_path);
         // check this is ok
         if !dev_path.exists() { return Err(BusError::DevicePathNotFound);}
 
+        // let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
+        // let a  = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap();
+        // println!("a: {:?}", a);
+        // let temp : *const u8 = a.clone().as_ptr();
+
         let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        let temp : *const u8 = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
+        let temp = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
         
         // decode setup struct
         let mut encoded_mode : u8 = 0;
@@ -145,8 +151,13 @@ impl SpiBus {
             },
         }
 
+        println!("temp: {:?}", temp.clone());
+        println!("encoded_mode: {:?}", encoded_mode);
+        println!("encoded_mode: {:b}", encoded_mode);
+
         let op_result : u8 = unsafe {
-            set_mode(temp.clone(), encoded_mode) // this is hard coded to work
+            // set_mode(temp.clone(), 4)
+            set_mode(temp.clone(), encoded_mode)
         };
         // todo assert this is correct result
         match op_result {
@@ -215,7 +226,7 @@ mod test {
         let setup = SpiSetup {
             spi_mode: SpiMode::SpiMode0,
             cs_mode: CsMode::CsLow,
-            bit_order: BitOrder::LSB,
+            bit_order: BitOrder::MSB,
         };
 
         if let Err(val) = SpiBus::new(
@@ -237,14 +248,17 @@ mod test {
         let setup = SpiSetup {
             spi_mode: SpiMode::SpiMode0,
             cs_mode: CsMode::CsLow,
-            bit_order: BitOrder::LSB,
+            bit_order: BitOrder::MSB,
         };
         
         let spi_dev : SpiBus;
-        if let Ok(dev) = SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
-            spi_dev = dev;
-        } else {
-            return Err("could not get dev".to_string());
+        match SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
+            Ok(dev) =>  {
+                spi_dev = dev;
+            }
+            Err(reason) => {
+                return Err(format!("could not get dev: {:?}", reason));
+            }
         }
 
         let data: Vec<u8> = vec![0,1,2,3,4,5];

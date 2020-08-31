@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <linux/types.h>
@@ -106,6 +107,8 @@ uint8_t transfer_8_bit( const char *device,
                             uint16_t delay_us, uint32_t speed_hz, 
                             uint8_t bits
                             ) {
+
+    printf("device: %s\n", device);
 	int ret;
     uint8_t func_return = 0;
     rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
