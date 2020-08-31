@@ -1,5 +1,5 @@
 [package]
-name = "Rust-Linux-Spi-Driver"
+name = "linux_spi_driver"
 version = "0.1.0"
 authors = ["jamie <jamieapps101@gmail.com>"]
 edition = "2018"
