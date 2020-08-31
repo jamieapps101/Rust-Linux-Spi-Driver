@@ -26,29 +26,29 @@
 uint8_t set_mode(const char *device, uint8_t encoded_mode) {
     uint8_t mode = 0;
     
-    // if(1<<0 & encoded_mode) // 1
-    //     mode |= SPI_LOOP;
+    if(1<<0 & encoded_mode) // 1
+        mode |= SPI_LOOP;
 
-    // if(1<<1 & encoded_mode)  // 2
-    //     mode |= SPI_CPHA;
+    if(1<<1 & encoded_mode)  // 2
+        mode |= SPI_CPHA;
 
-    // if(1<<2 & encoded_mode)  // 4
-    //     mode |= SPI_CPOL;
+    if(1<<2 & encoded_mode)  // 4
+        mode |= SPI_CPOL;
 
-    // if(1<<3 & encoded_mode)  // 8
-    //     mode |= SPI_LSB_FIRST;
+    if(1<<3 & encoded_mode)  // 8
+        mode |= SPI_LSB_FIRST;
 
-    // if(1<<4 & encoded_mode)  // 16
+    if(1<<4 & encoded_mode)  // 16
         mode |= SPI_CS_HIGH;
 
-    // if(1<<5 & encoded_mode)  // 32
-    //     mode |= SPI_3WIRE;
+    if(1<<5 & encoded_mode)  // 32
+        mode |= SPI_3WIRE;
 
-    // if(1<<6 & encoded_mode)  // 64
-    //     mode |= SPI_NO_CS;
+    if(1<<6 & encoded_mode)  // 64
+        mode |= SPI_NO_CS;
 
-    // if(1<<7 & encoded_mode)  // 128
-    //     mode |= SPI_READY;
+    if(1<<7 & encoded_mode)  // 128
+        mode |= SPI_READY;
 
 
     int ioctl_ret = 0;
@@ -56,7 +56,7 @@ uint8_t set_mode(const char *device, uint8_t encoded_mode) {
     int fd = open(device, O_RDWR);
     ioctl_ret = ioctl(fd, SPI_IOC_WR_MODE, &mode);
 	if (ioctl_ret == -1)
-        func_ret |= 1; // cant et mode
+        func_ret |= 1; // cant set mode
 
 	ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
 	if (ioctl_ret == -1)
@@ -102,30 +102,18 @@ uint8_t set_bits_per_word(const char *device, uint8_t bits) {
 uint8_t transfer_8_bit( const char *device,
                             uint8_t *tx, uint32_t tx_words, 
                             uint8_t *rx, 
-                            // uint32_t *rx_words, 
+                            uint32_t rx_words, 
                             uint16_t delay_us, uint32_t speed_hz, 
                             uint8_t bits
                             ) {
 	int ret;
     uint8_t func_return = 0;
-
-    uint8_t temp_tx[] = {
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0x40, 0x00, 0x00, 0x00, 0x00, 0x95,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xDE, 0xAD, 0xBE, 0xEF, 0xBA, 0xAD,
-		0xF0, 0x0D,
-	};
-    // tx = temp;
-	// uint8_t *rx;
-    // rx = (uint8_t*)calloc(tx_words, sizeof(uint8_t));
-    uint8_t temp_rx[ARRAY_SIZE(tx)] = {0, };
+    rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
+    rx[rx_words] = 0;
 	struct spi_ioc_transfer tr = {
-		.tx_buf = (unsigned long)temp_tx,
-		.rx_buf = (unsigned long)temp_rx,
-		.len = ARRAY_SIZE(temp_tx),
+		.tx_buf = (unsigned long)tx,
+		.rx_buf = (unsigned long)rx,
+		.len = tx_words,
 		.delay_usecs = delay_us,
 		.speed_hz = speed_hz,
 		.bits_per_word = bits,
@@ -137,14 +125,6 @@ uint8_t transfer_8_bit( const char *device,
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
 	if (ret < 1)
         func_return = 1;
-		// pabort("can't send spi message");
-
-	// for (ret = 0; ret < words; ret++) {
-	// 	if (!(ret % 6))
-	// 		puts("");
-	// 	printf("%.2X ", rx[ret]);
-	// }
-	// puts("");
     close(fd);
     return func_return;
 }

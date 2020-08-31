@@ -1,6 +1,5 @@
 use std::{
     path::PathBuf,
-    boxed::Box,
     convert::{From,Into},
     ffi::CStr,
 };
@@ -15,7 +14,7 @@ extern "C" {
     fn transfer_8_bit(    device: *const c_char,
                             tx: *const u8, tx_words: u32, 
                             rx: *mut u8, 
-                            // uint32_t *rx_words, 
+                            rx_words: u32, 
                             delay_us: u16 , 
                             speed_hz: u32, 
                             bits: u8 
@@ -28,6 +27,35 @@ extern "C" {
 pub enum WordLength {
     EightBit,
     NineBit,
+}
+
+#[allow(dead_code)]
+#[derive(PartialEq)]
+pub enum SpiMode {
+    SpiMode0,
+    SpiMode1,
+    SpiMode2,
+    SpiMode3,
+}
+
+#[allow(dead_code)]
+#[derive(PartialEq)]
+pub enum CsMode {
+    CsHigh,
+    CsLow,
+    NoCs,
+}
+
+#[derive(PartialEq)]
+pub enum BitOrder {
+    LSB,
+    MSB,
+}
+
+pub struct SpiSetup {
+    spi_mode: SpiMode,
+    cs_mode: CsMode,
+    bit_order: BitOrder,
 }
 
 impl From<u8> for WordLength {
@@ -66,8 +94,11 @@ pub enum BusError {
     CouldNotOpenFile,
     CouldNotSetMaxSpeed,
     CouldNotGetMaxSpeed,
+    CouldNotSetMode,
+    CouldNotGetMode,
     CouldNotSendMessage,
 }
+
 
 trait Write<T> {
     fn write(&self, data: T) -> Result<(),BusError>;
@@ -76,31 +107,54 @@ trait Write<T> {
 #[allow(dead_code)]
 impl SpiBus {
     pub fn new(bus_id: &str, delay_us: u16 , 
-        speed_hz: u32, bits: WordLength) -> Result<SpiBus, BusError> {
+        speed_hz: u32, bits: WordLength, setup: SpiSetup) -> Result<SpiBus, BusError> {
         let dev_path = PathBuf::from(bus_id);
         // check this is ok
         if !dev_path.exists() { return Err(BusError::DevicePathNotFound);}
 
         let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        let temp = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
+        let temp : *const u8 = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
         
-        
-        // perform setup hardcoded fornow
-        let op_result : u8 = unsafe {
-            set_mode(temp.clone(), 16) // this is hard coded to work
-        };
+        // decode setup struct
+        let mut encoded_mode : u8 = 0;
+        if setup.bit_order == BitOrder::LSB {
+            encoded_mode |= 1<<3;
+        }
 
-        println!("op_result: {:?}", op_result);
+        if setup.cs_mode == CsMode::NoCs {
+            encoded_mode |= 1<<6;
+        } else {
+            if setup.cs_mode == CsMode::CsHigh {
+                encoded_mode |= 1<<4;
+            }
+        }
         
+        match setup.spi_mode {
+            SpiMode::SpiMode0 => {
+                // do nothing for this one
+            },
+            SpiMode::SpiMode1 => {
+                encoded_mode |= 1<<1;
+            },
+            SpiMode::SpiMode2 => {
+                encoded_mode |= 1<<2;
+            },
+            SpiMode::SpiMode3 => {
+                encoded_mode |= 1<<1;
+                encoded_mode |= 1<<2;
+            },
+        }
+
         let op_result : u8 = unsafe {
-            set_speed(temp.clone(), 500000) // this works!
+            set_mode(temp.clone(), encoded_mode) // this is hard coded to work
         };
-        println!("op_result: {:?}", op_result);
-        
-        let op_result : u8 = unsafe {
-            set_bits_per_word(temp.clone(), 8)
-        };
-        println!("op_result: {:?}", op_result);
+        // todo assert this is correct result
+        match op_result {
+            0 => {/* do nothing, this is correct result */},
+            1 => return Err(BusError::CouldNotSetMode),
+            2 => return Err(BusError::CouldNotGetMode),
+            _ => unreachable!(),
+        }
         
         return Ok(SpiBus {
             dev_path,
@@ -111,30 +165,20 @@ impl SpiBus {
         });
     }
 
-
-    fn test_set_speed(&self) -> Result<(), BusError> {
-        let path_string_with_null: String = self.dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        let dev_path_cstr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
-        let op_result = unsafe {
-            set_speed(dev_path_cstr, 1000)
-        };
-        match op_result {
-            0 => Ok(()),
-            1 => Err(BusError::CouldNotSetMaxSpeed),
-            2 => Err(BusError::CouldNotGetMaxSpeed),
-            _ => unreachable!(),
-        } 
-    }
-
     pub fn transaction(&self, tx_data: Vec<u8>, max_rx_words: Option<u32>) -> Result<Vec<u8>, BusError> {
         let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
         let path_string_with_null: String = self.dev_path.clone().into_os_string().into_string().unwrap()+"\0";
         let dev_path_cstr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
         
+        let max_rx_words_val: u32 = match max_rx_words {
+            Some(val) => val,
+            None => 0,
+        };
+
         let op_result : u8 = unsafe {
             transfer_8_bit( dev_path_cstr,
                 tx_data.as_ptr(), tx_data.len() as u32,
-                return_vec.as_mut_ptr(), 
+                return_vec.as_mut_ptr(), max_rx_words_val,
                 self.delay_us, 
                 self.speed_hz, 
                 self.bits.into())
@@ -168,9 +212,15 @@ mod test {
     use super::*;
     #[test]
     fn init_bus_false_path() -> Result<(),String> {
+        let setup = SpiSetup {
+            spi_mode: SpiMode::SpiMode0,
+            cs_mode: CsMode::CsLow,
+            bit_order: BitOrder::LSB,
+        };
+
         if let Err(val) = SpiBus::new(
                 "/dev/spi_bus",
-                0, 0, WordLength::EightBit,
+                0, 0, WordLength::EightBit,setup
             ) {
             if val == BusError::DevicePathNotFound {
                 Ok(())
@@ -183,25 +233,15 @@ mod test {
     }
 
     #[test]
-    fn test_set_speed_function() -> Result<(), String> {
-        let spi_dev : SpiBus;
-        if let Ok(dev) = SpiBus::new("/dev/spidev0.0", 0, 0, WordLength::EightBit) {
-            spi_dev = dev;
-        } else {
-            return Err("could not get dev".to_string());
-        }
-        match spi_dev.test_set_speed() {
-            Ok(_) => Ok(()),
-            Err(reason) => {
-                Err(format!("I errored bc: {:?}", reason))
-            }
-        }
-    }
-
-    #[test]
     fn test_transfer_send() -> Result<(), String> {
+        let setup = SpiSetup {
+            spi_mode: SpiMode::SpiMode0,
+            cs_mode: CsMode::CsLow,
+            bit_order: BitOrder::LSB,
+        };
+        
         let spi_dev : SpiBus;
-        if let Ok(dev) = SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit) {
+        if let Ok(dev) = SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
             spi_dev = dev;
         } else {
             return Err("could not get dev".to_string());
