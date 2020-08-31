@@ -22,17 +22,27 @@ extern "C" {
                             ) -> u8;
 }
 
+#[derive(Copy, Clone)]
 pub enum WordLength {
-    Eight_Bit,
-    Nine_Bit,
+    EightBit,
+    NineBit,
 }
 
 impl From<u8> for WordLength {
     fn from(w: u8) -> WordLength {
         match w {
-            8 => WordLength::Eight_Bit,
-            9 => WordLength::Nine_Bit,
+            8 => WordLength::EightBit,
+            9 => WordLength::NineBit,
             _ => panic!("Invalid conversion to wordlength, value {}", w),
+        }
+    }
+}
+
+impl From<WordLength> for u8 {
+    fn from(w: WordLength) -> u8 {
+        match w {
+            WordLength::EightBit => 8,
+            WordLength::NineBit => 9,
         }
     }
 }
@@ -42,8 +52,8 @@ pub struct SpiBus {
     delay_us: u16 , 
     speed_hz: u32, 
     bits: WordLength, 
+    path_cstr_ptr: Option<*const i8>,
 }
-
 
 #[derive(PartialEq, Debug)]
 #[allow(dead_code)]
@@ -53,14 +63,11 @@ pub enum BusError {
     CouldNotConvertPathToCStr,
     CouldNotSetMaxSpeed,
     CouldNotGetMaxSpeed,
+    CouldNotSendMessage,
 }
 
 trait Write<T> {
     fn write(&self, data: T) -> Result<(),BusError>;
-}
-
-trait Read<T> {
-    fn read(&self) -> Result<T,BusError>;
 }
 
 #[allow(dead_code)]
@@ -70,13 +77,20 @@ impl SpiBus {
         let dev_path = PathBuf::from(bus_id);
         // check this is ok
         if !dev_path.exists() { return Err(BusError::DevicePathNotFound);}
+
+        let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
+        let temp = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
+        
+
         return Ok(SpiBus {
             dev_path,
             delay_us,
             speed_hz,
             bits,
+            path_cstr_ptr: Some(temp),
         });
     }
+
 
     fn test_set_speed(&self) -> Result<(), BusError> {
         let path_string_with_null: String = self.dev_path.clone().into_os_string().into_string().unwrap()+"\0";
@@ -88,8 +102,27 @@ impl SpiBus {
             0 => Ok(()),
             1 => Err(BusError::CouldNotSetMaxSpeed),
             2 => Err(BusError::CouldNotGetMaxSpeed),
-            _ => panic!("This should be unreachable"),
+            _ => unreachable!(),
         } 
+    }
+
+    pub fn transaction(&self, tx_data: Vec<u8>, max_rx_words: Option<u32>) -> Result<Vec<u8>, BusError> {
+        let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
+
+        let op_result = unsafe {
+            transfer_8_bit( self.path_cstr_ptr.unwrap(),
+                tx_data.as_ptr(), tx_data.len() as u32,
+                return_vec.as_mut_ptr(), 
+                self.delay_us, 
+                self.speed_hz, 
+                self.bits.into())
+        };
+
+        match op_result {
+            0 => Ok(return_vec),
+            1 => Err(BusError::CouldNotSendMessage),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -100,22 +133,12 @@ impl Write<&str> for SpiBus {
 }
 
 impl Write<Vec<u8>> for SpiBus {
-    fn write(&self, data: Vec<u8>)  -> Result<(),BusError> {
+    fn write(&self, tx_data: Vec<u8>)  -> Result<(),BusError> {
         return Err(BusError::NotImplemented)
     }
 }
 
-impl Read<Box<str>> for SpiBus {
-    fn read(&self) -> Result<Box<str>,BusError> {
-        return Err(BusError::NotImplemented);
-    }
-}
 
-impl Read<Vec<u8>> for SpiBus {
-    fn read(&self) -> Result<Vec<u8>,BusError> {
-        return Err(BusError::NotImplemented);
-    }
-}
 
 #[cfg(test)]
 mod test {
@@ -124,7 +147,7 @@ mod test {
     fn init_bus_false_path() -> Result<(),String> {
         if let Err(val) = SpiBus::new(
                 "/dev/spi_bus",
-                0, 0, WordLength::Eight_Bit,
+                0, 0, WordLength::EightBit,
             ) {
             if val == BusError::DevicePathNotFound {
                 Ok(())
@@ -139,7 +162,7 @@ mod test {
     #[test]
     fn test_set_speed_function() -> Result<(), String> {
         let spi_dev : SpiBus;
-        if let Ok(dev) = SpiBus::new("/dev/spidev0.0", 0, 0, WordLength::Eight_Bit) {
+        if let Ok(dev) = SpiBus::new("/dev/spidev0.0", 0, 0, WordLength::EightBit) {
             spi_dev = dev;
         } else {
             return Err("could not get dev".to_string());
