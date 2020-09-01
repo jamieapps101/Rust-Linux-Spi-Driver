@@ -20,7 +20,18 @@ extern "C" {
                             bits: u8 
                             ) -> u8;
     fn set_bits_per_word( device: *const c_char, bits: u8) -> u8;
-    
+    // new api from here
+    fn get_dev_fd(device: *const c_char, fd: *mut i32) -> u8;
+    fn set_mode_on_fd(fd: i32, encoded_mode: u8) -> u8;
+    fn transfer_8_bit_on_fd(fd: i32, 
+        tx: *const u8, tx_words: u32, 
+        rx: *mut u8, 
+        rx_words: u32, 
+        delay_us: u16 , 
+        speed_hz: u32, 
+        bits: u8 
+    ) -> u8;    
+    fn close_dev_fd(fd:*mut i32);
 }
 
 #[derive(Copy, Clone)]
@@ -78,11 +89,12 @@ impl From<WordLength> for u8 {
 }
 
 pub struct SpiBus {
-    dev_path: PathBuf,
+    // dev_path: PathBuf,
     delay_us: u16 , 
     speed_hz: u32, 
     bits: WordLength, 
-    path_cstr_ptr: Option<*const u8>,
+    // path_cstr_ptr: Option<*const u8>,
+    c_fd: i32, 
 }
 
 #[derive(PartialEq, Debug)]
@@ -92,6 +104,7 @@ pub enum BusError {
     NotImplemented,
     CouldNotConvertPathToCStr,
     CouldNotOpenFile,
+    CouldNotGetFileDescriptor,
     CouldNotSetMaxSpeed,
     CouldNotGetMaxSpeed,
     CouldNotSetMode,
@@ -115,6 +128,16 @@ impl SpiBus {
         let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
         let path_string_with_null_ptr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
         
+        let mut c_fd: i32 = 0;
+        let op_result = unsafe {
+            get_dev_fd(path_string_with_null_ptr, &mut c_fd)
+        };
+        match op_result {
+            0 => {}, // all ok, do nothing
+            1 => return Err(BusError::CouldNotGetFileDescriptor),
+            _ => unreachable!(),
+        }
+
         // decode setup struct
         let mut encoded_mode : u8 = 0;
         if setup.bit_order == BitOrder::LSB {
@@ -145,9 +168,10 @@ impl SpiBus {
             },
         }
 
-        let temp = path_string_with_null_ptr.clone();
+        // let temp = path_string_with_null_ptr.clone();
         let op_result : u8 = unsafe {
-            set_mode(temp, encoded_mode)
+            // set_mode(temp, encoded_mode)
+            set_mode_on_fd(c_fd.clone(), encoded_mode)
         };
         // todo assert this is correct result
         match op_result {
@@ -158,18 +182,19 @@ impl SpiBus {
         }
         
         return Ok(SpiBus {
-            dev_path,
+            // dev_path,
+            c_fd,
             delay_us,
             speed_hz,
             bits,
-            path_cstr_ptr: Some(path_string_with_null_ptr),
+            // path_cstr_ptr: Some(path_string_with_null_ptr),
         });
     }
 
     pub fn transaction(&self, tx_data: Vec<u8>, max_rx_words: Option<u32>) -> Result<Vec<u8>, BusError> {
         let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
-        let path_string_with_null: String = self.dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        let dev_path_cstr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
+        // let path_string_with_null: String = self.dev_path.clone().into_os_string().into_string().unwrap()+"\0";
+        // let dev_path_cstr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
         
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
@@ -177,9 +202,10 @@ impl SpiBus {
         };
 
         let op_result : u8 = unsafe {
-            transfer_8_bit( 
+            transfer_8_bit_on_fd( 
                 // self.path_cstr_ptr.unwrap(),
-                dev_path_cstr,
+                // dev_path_cstr,
+                self.c_fd.clone(),
                 tx_data.as_ptr(), tx_data.len() as u32,
                 return_vec.as_mut_ptr(), max_rx_words_val,
                 self.delay_us, 
@@ -199,13 +225,13 @@ impl SpiBus {
 }
 
 impl Write<&str> for SpiBus {
-    fn write(&self, data: &str)  -> Result<(),BusError> {
+    fn write(&self, _data: &str)  -> Result<(),BusError> {
         return Err(BusError::NotImplemented)
     }
 }
 
 impl Write<Vec<u8>> for SpiBus {
-    fn write(&self, tx_data: Vec<u8>)  -> Result<(),BusError> {
+    fn write(&self, _tx_data: Vec<u8>)  -> Result<(),BusError> {
         return Err(BusError::NotImplemented)
     }
 }
@@ -243,7 +269,7 @@ mod test {
             bit_order: BitOrder::MSB,
         };
         
-        let spi_dev : SpiBus;
+        let mut spi_dev : SpiBus;
         match SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
             Ok(dev) =>  {
                 spi_dev = dev;
@@ -255,11 +281,20 @@ mod test {
 
         let data: Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
 
-        match spi_dev.transaction(data, None) {
-            Ok(_) => Ok(()),
+        match spi_dev.transaction(data.clone(), None) {
+            Ok(_) => {},
             Err(reason) => {
-                Err(format!("I errored bc: {:?}", reason))
+                return Err(format!("I errored bc: {:?}", reason))
             }
         }
+
+        match spi_dev.transaction(data.clone(), None) {
+            Ok(_) => {},
+            Err(reason) => {
+                return Err(format!("I errored bc: {:?}", reason))
+            }
+        }
+        return Ok(())
+
     }
 }

@@ -25,43 +25,8 @@
 // this decouples values imported from header
 // file from the values required to select them
 uint8_t set_mode(const char *device, uint8_t encoded_mode) {
-    uint8_t mode = 0;
-    
-    if(1<<0 & encoded_mode) // 1
-        mode |= SPI_LOOP;
-
-    if(1<<1 & encoded_mode)  // 2
-        mode |= SPI_CPHA;
-
-    if(1<<2 & encoded_mode)  // 4
-        mode |= SPI_CPOL;
-
-    if(1<<3 & encoded_mode)  // 8
-        mode |= SPI_LSB_FIRST;
-
-    if(1<<4 & encoded_mode)  // 16
-        mode |= SPI_CS_HIGH;
-
-    if(1<<5 & encoded_mode)  // 32
-        mode |= SPI_3WIRE;
-
-    if(1<<6 & encoded_mode)  // 64
-        mode |= SPI_NO_CS;
-
-    if(1<<7 & encoded_mode)  // 128
-        mode |= SPI_READY;
-
-
-    int ioctl_ret = 0;
-    uint8_t func_ret = 0;
     int fd = open(device, O_RDWR);
-    ioctl_ret = ioctl(fd, SPI_IOC_WR_MODE, &mode);
-	if (ioctl_ret == -1)
-        func_ret |= 1; // cant set mode
-
-	ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
-	if (ioctl_ret == -1)
-        func_ret |= 1<<1; // cant get mode
+    int func_ret = set_mode_on_fd(fd, encoded_mode);
     close(fd);
     return func_ret;
 }
@@ -107,9 +72,86 @@ uint8_t transfer_8_bit( const char *device,
                             uint16_t delay_us, uint32_t speed_hz, 
                             uint8_t bits
                             ) {
+    int fd = open(device, O_RDWR);
+    if (fd < 0) {
+        return 2; // indicating could not get a file handle
+    }
 
-    printf("device: %s\n", device);
-	int ret;
+    uint8_t func_return = transfer_8_bit_on_fd(fd,
+        tx, tx_words,
+        rx, rx_words,
+        delay_us, speed_hz, bits
+    );
+
+    close(fd);
+    return func_return;
+}
+
+
+// new fd based API from here
+uint8_t get_dev_fd(const char *device, int32_t *fd) {
+    *fd = open(device, O_RDWR);
+    if (fd < 0) {
+        return 1; // indicating could not get a file handle
+    }
+    return 0;
+}
+
+void close_dev_fd(int32_t fd) {
+    close(fd);
+}
+
+uint8_t set_mode_on_fd(int32_t fd, uint8_t encoded_mode) {
+    uint8_t mode = 0;
+    if(1<<0 & encoded_mode) // 1
+        mode |= SPI_LOOP;
+
+    if(1<<1 & encoded_mode)  // 2
+        mode |= SPI_CPHA;
+
+    if(1<<2 & encoded_mode)  // 4
+        mode |= SPI_CPOL;
+
+    if(1<<3 & encoded_mode)  // 8
+        mode |= SPI_LSB_FIRST;
+
+    if(1<<4 & encoded_mode)  // 16
+        mode |= SPI_CS_HIGH;
+
+    if(1<<5 & encoded_mode)  // 32
+        mode |= SPI_3WIRE;
+
+    if(1<<6 & encoded_mode)  // 64
+        mode |= SPI_NO_CS;
+
+    if(1<<7 & encoded_mode)  // 128
+        mode |= SPI_READY;
+
+
+    int ioctl_ret = 0;
+    uint8_t func_ret = 0;
+    ioctl_ret = ioctl(fd, SPI_IOC_WR_MODE, &mode);
+	if (ioctl_ret == -1) {
+        func_ret |= 1; // cant set mode
+    }
+
+	ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
+	if (ioctl_ret == -1) {
+        func_ret |= 1<<1; // cant get mode
+    }
+    return func_ret;
+}
+
+uint8_t transfer_8_bit_on_fd(int32_t fd, 
+    uint8_t *tx,
+    uint32_t tx_words,
+    uint8_t *rx,
+    uint32_t rx_words,
+    uint16_t delay_us,
+    uint32_t speed_hz,
+    uint8_t bits
+) {
+    int ret;
     uint8_t func_return = 0;
     rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
     rx[rx_words] = 0;
@@ -121,16 +163,9 @@ uint8_t transfer_8_bit( const char *device,
 		.speed_hz = speed_hz,
 		.bits_per_word = bits,
 	};
-    int fd = open(device, O_RDWR);
-    if (fd < 0) {
-        return 2; // indicating could not get a file handle
-    }
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
-	if (ret < 1)
+	if (ret < 1) {
         func_return = 1;
-    close(fd);
+    }
     return func_return;
 }
-
-
-
