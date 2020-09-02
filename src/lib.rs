@@ -175,7 +175,6 @@ impl SpiBus {
 
     pub fn transaction(&self, tx_data: Vec<u8>, max_rx_words: Option<u32>) -> Result<Vec<u8>, BusError> {
         let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
-
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
@@ -245,7 +244,7 @@ mod test {
             bit_order: BitOrder::MSB,
         };
         
-        let spi_dev : SpiBus;
+        let mut spi_dev : SpiBus;
         match SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
             Ok(dev) =>  {
                 spi_dev = dev;

@@ -169,6 +169,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
     gpiod_line_set_value(dc_line, dc_command);
 
     // send command byte(s)
+
     int ret;
     uint8_t func_return = 0;
     rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
@@ -181,6 +182,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 		.speed_hz = speed_hz,
 		.bits_per_word = bits,
 	};
+    
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
 	if (ret < 1) {
         // todo reset dc and cs lines, then re enalbe cs
