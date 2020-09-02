@@ -2,9 +2,11 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <linux/types.h>
+#include <linux/gpio.h>
 #include <linux/spi/spidev.h>
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
@@ -24,71 +26,6 @@
 // encoded mode options, defined above
 // this decouples values imported from header
 // file from the values required to select them
-uint8_t set_mode(const char *device, uint8_t encoded_mode) {
-    int fd = open(device, O_RDWR);
-    int func_ret = set_mode_on_fd(fd, encoded_mode);
-    close(fd);
-    return func_ret;
-}
-
-
-uint8_t set_speed(const char *device, uint32_t speed) {
-    int ioctl_ret = 0;
-    uint8_t func_ret = 0;
-    int fd = open(device, O_RDWR);
-    ioctl_ret = ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
-	if (ioctl_ret == -1)
-        func_ret |= 1; // cant set max speed
-
-
-	ioctl_ret = ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
-	if (ioctl_ret == -1)
-        func_ret |= 1<<1; // cant get max speed
-    close(fd);
-    return func_ret;
-}
-
-uint8_t set_bits_per_word(const char *device, uint8_t bits) {
-    int ioctl_ret = 0;
-    uint8_t func_ret = 0;
-    int fd = open(device, O_RDWR);
-    ioctl_ret = ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
-	if (ioctl_ret == -1)
-        func_ret |= 1; // cant set bits
-
-
-	ioctl_ret = ioctl(fd, SPI_IOC_RD_BITS_PER_WORD, &bits);
-	if (ioctl_ret == -1)
-        func_ret |= 1<<1; // cant get bits
-    close(fd);
-    return func_ret;
-}
-
-
-uint8_t transfer_8_bit( const char *device,
-                            uint8_t *tx, uint32_t tx_words, 
-                            uint8_t *rx, 
-                            uint32_t rx_words, 
-                            uint16_t delay_us, uint32_t speed_hz, 
-                            uint8_t bits
-                            ) {
-    int fd = open(device, O_RDWR);
-    if (fd < 0) {
-        return 2; // indicating could not get a file handle
-    }
-
-    uint8_t func_return = transfer_8_bit_on_fd(fd,
-        tx, tx_words,
-        rx, rx_words,
-        delay_us, speed_hz, bits
-    );
-
-    close(fd);
-    return func_return;
-}
-
-
-// new fd based API from here
 uint8_t get_dev_fd(const char *device, int32_t *fd) {
     *fd = open(device, O_RDWR);
     if (fd < 0) {
@@ -168,4 +105,119 @@ uint8_t transfer_8_bit_on_fd(int32_t fd,
         func_return = 1;
     }
     return func_return;
+}
+
+
+// TODO write function to allow data/command control pin
+uint8_t transfer_8_bit_DC_on_fd(int32_t fd, 
+    const char *gpio_dev,
+    uint8_t cs_line_no,
+    uint8_t dc_line_no,
+    uint8_t *command_tx,
+    uint32_t command_tx_words,
+    uint8_t *data_tx,
+    uint32_t data_tx_words,
+    bool command_mode_active_high,
+    bool cs_active_high,
+    uint8_t *rx,
+    uint32_t rx_words,
+    uint16_t delay_us,
+    uint32_t speed_hz,
+    uint8_t bits
+) {
+    unsigned int cs_enable = 0;
+    unsigned int cs_disable = 0;
+    unsigned int dc_command = 0;
+    unsigned int dc_data = 0;
+    if(cs_active_high) {
+        cs_enable = 1;
+    } else {
+        cs_disable = 1;
+    }
+    if (command_mode_active_high) {
+        dc_command = 1;
+    } else {
+        dc_data = 1;
+    }
+    // get inst of gpio dev for cs and DC line 
+    struct gpiod_chip *chip;
+	struct gpiod_line *cs_line, *dc_line;
+    chip = gpiod_chip_open(gpio_dev);
+    if (!chip) {return -1;}
+    cs_line = gpiod_chip_get_line(chip, cs_line);
+    dc_line = gpiod_chip_get_line(chip, dc_line);
+
+    if (!cs_line || !dc_line) {
+		gpiod_chip_close(chip);
+		return 1;
+	}
+    // using cs_active_high var, disable CS, then manually set it
+    uint8_t mode = 0;
+    uint8_t new_mode = 0;
+    int ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
+    if (ioctl_ret == -1) {
+        return 2; // cant get mode
+    }
+    new_mode = mode | SPI_NO_CS;
+    ioctl_ret = ioctl(fd, SPI_IOC_WR_MODE, &new_mode);
+	if (ioctl_ret == -1) {
+        return 3; // cant set mode
+    }
+    gpiod_line_set_value(cs_line, cs_enable);
+
+    // set DC line
+    gpiod_line_set_value(dc_line, dc_command);
+
+    // send command byte(s)
+    int ret;
+    uint8_t func_return = 0;
+    rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
+    rx[rx_words] = 0;
+	struct spi_ioc_transfer tr = {
+		.tx_buf = (unsigned long)command_tx,
+		.rx_buf = (unsigned long)rx,
+		.len = command_tx_words,
+		.delay_usecs = delay_us,
+		.speed_hz = speed_hz,
+		.bits_per_word = bits,
+	};
+	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+	if (ret < 1) {
+        // todo reset dc and cs lines, then re enalbe cs
+        return 4;
+    }
+    // set DC line
+    gpiod_line_set_value(dc_line, dc_data);
+
+    // send data byte(s)
+    struct spi_ioc_transfer tr = {
+		.tx_buf = (unsigned long)data_tx,
+		.rx_buf = (unsigned long)rx,
+		.len = data_tx_words,
+		.delay_usecs = delay_us,
+		.speed_hz = speed_hz,
+		.bits_per_word = bits,
+	};
+	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+	if (ret < 1) {
+        // todo reset dc and cs lines, then re enalbe cs
+        return 5;
+    }
+
+    // unset CS line
+    gpiod_line_set_value(cs_line, cs_disable);
+    gpiod_line_set_value(dc_line, 0);
+
+    // re-enable CS
+    int ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
+    if (ioctl_ret == -1) {
+        return 2; // cant get mode
+    }
+    new_mode = mode & (~SPI_NO_CS);
+    ioctl_ret = ioctl(fd, SPI_IOC_WR_MODE, &new_mode);
+	if (ioctl_ret == -1) {
+        return 3; // cant set mode
+    }
+
+    return 0;
 }

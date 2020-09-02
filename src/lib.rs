@@ -9,18 +9,6 @@ use libc::{c_char};
 
 #[allow(dead_code)]
 extern "C" {
-    fn set_mode(          device: *const c_char, encoded_mode: u8) -> u8;
-    fn set_speed(         device: *const c_char, speed: u32) -> u8;
-    fn transfer_8_bit(    device: *const c_char,
-                            tx: *const u8, tx_words: u32, 
-                            rx: *mut u8, 
-                            rx_words: u32, 
-                            delay_us: u16 , 
-                            speed_hz: u32, 
-                            bits: u8 
-                            ) -> u8;
-    fn set_bits_per_word( device: *const c_char, bits: u8) -> u8;
-    // new api from here
     fn get_dev_fd(device: *const c_char, fd: *mut i32) -> u8;
     fn set_mode_on_fd(fd: i32, encoded_mode: u8) -> u8;
     fn transfer_8_bit_on_fd(fd: i32, 
@@ -89,11 +77,9 @@ impl From<WordLength> for u8 {
 }
 
 pub struct SpiBus {
-    // dev_path: PathBuf,
     delay_us: u16 , 
     speed_hz: u32, 
-    bits: WordLength, 
-    // path_cstr_ptr: Option<*const u8>,
+    bits: WordLength,
     c_fd: i32, 
 }
 
@@ -168,12 +154,10 @@ impl SpiBus {
             },
         }
 
-        // let temp = path_string_with_null_ptr.clone();
         let op_result : u8 = unsafe {
-            // set_mode(temp, encoded_mode)
             set_mode_on_fd(c_fd.clone(), encoded_mode)
         };
-        // todo assert this is correct result
+
         match op_result {
             0 => {/* do nothing, this is correct result */},
             1 => return Err(BusError::CouldNotSetMode),
@@ -182,29 +166,23 @@ impl SpiBus {
         }
         
         return Ok(SpiBus {
-            // dev_path,
             c_fd,
             delay_us,
             speed_hz,
             bits,
-            // path_cstr_ptr: Some(path_string_with_null_ptr),
         });
     }
 
     pub fn transaction(&self, tx_data: Vec<u8>, max_rx_words: Option<u32>) -> Result<Vec<u8>, BusError> {
         let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
-        // let path_string_with_null: String = self.dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        // let dev_path_cstr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
-        
+
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
         };
 
         let op_result : u8 = unsafe {
-            transfer_8_bit_on_fd( 
-                // self.path_cstr_ptr.unwrap(),
-                // dev_path_cstr,
+            transfer_8_bit_on_fd(
                 self.c_fd.clone(),
                 tx_data.as_ptr(), tx_data.len() as u32,
                 return_vec.as_mut_ptr(), max_rx_words_val,
@@ -212,8 +190,6 @@ impl SpiBus {
                 self.speed_hz, 
                 self.bits.into())
         };
-
-        println!("transfer_8_bit op_result: {:?}", op_result);
 
         match op_result {
             0 => Ok(return_vec),
@@ -269,7 +245,7 @@ mod test {
             bit_order: BitOrder::MSB,
         };
         
-        let mut spi_dev : SpiBus;
+        let spi_dev : SpiBus;
         match SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
             Ok(dev) =>  {
                 spi_dev = dev;

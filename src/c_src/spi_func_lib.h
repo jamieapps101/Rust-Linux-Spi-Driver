@@ -3,22 +3,6 @@
 #include <stdint.h>
 
 
-// setup
-
-// use
-uint8_t set_mode(const char *device, uint8_t encoded_mode);
-
-uint8_t set_speed(const char *device, uint32_t speed);
-uint8_t transfer_8_bit( const char *device,
-                            uint8_t *tx, uint32_t tx_words, 
-                            uint8_t *rx, 
-                            uint32_t rx_words, 
-                            uint16_t delay_us, uint32_t speed_hz, 
-                            uint8_t bits
-                            );
-uint8_t set_bits_per_word(const char *device, uint8_t bits);
-
-// new api
 uint8_t get_dev_fd(const char *device, int32_t *fd);
 uint8_t set_mode_on_fd(int32_t fd, uint8_t encoded_mode);
 uint8_t transfer_8_bit_on_fd(int32_t fd, 
