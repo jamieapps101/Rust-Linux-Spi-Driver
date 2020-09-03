@@ -213,7 +213,7 @@ impl SpiBus {
         }
     }
 
-    pub fn dc_transation(&self, 
+    pub fn dc_transaction(&self, 
         tx_command: Vec<u64>, 
         tx_data: Vec<u64>, 
         max_rx_words: Option<u32>, 
@@ -367,7 +367,7 @@ mod test {
         let data2: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
 
 
-        let result = spi_dev.dc_transation( 
+        let result = spi_dev.dc_transaction( 
             command, 
             data, 
             None, 
@@ -379,7 +379,7 @@ mod test {
             Ok(_) => {},
             Err(reason) => {return Err(format!("I errored bc: {:?}", reason))},
         }
-        let result = spi_dev.dc_transation( 
+        let result = spi_dev.dc_transaction( 
             command2, 
             data2, 
             None, 
