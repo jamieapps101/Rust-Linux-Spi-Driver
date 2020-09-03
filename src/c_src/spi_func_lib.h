@@ -13,17 +13,16 @@ uint8_t transfer_8_bit_on_fd(int32_t fd,
                                 uint8_t bits
                             );
 
+
 uint8_t transfer_8_bit_DC_on_fd(int32_t fd, 
     const char *gpio_dev,
-    uint8_t cs_line_no,
     uint8_t dc_line_no,
-    uint8_t *command_tx,
+    uint64_t *command_tx,
     uint32_t command_tx_words,
-    uint8_t *data_tx,
+    uint64_t *data_tx,
     uint32_t data_tx_words,
     bool command_mode_active_high,
-    bool cs_active_high,
-    uint8_t *rx,
+    uint64_t *rx,
     uint32_t rx_words,
     uint16_t delay_us,
     uint32_t speed_hz,

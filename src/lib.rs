@@ -23,15 +23,13 @@ extern "C" {
     fn transfer_8_bit_DC_on_fd(
         fd: i32, 
         gpio_dev: *const c_char,
-        cs_line_no: u8,
         dc_line_no: u8,
-        command_tx: *const u8,
+        command_tx: *const u64,
         command_tx_words: u32,
-        data_tx: *const u8,
+        data_tx: *const u64,
         data_tx_words: u32,
         command_mode_active_high: bool,
-        cs_active_high: bool,
-        rx: *mut u8,
+        rx: *mut u64,
         rx_words: u32,
         delay_us: u16,
         speed_hz: u32,
@@ -216,36 +214,36 @@ impl SpiBus {
     }
 
     pub fn dc_transation(&self, 
-        tx_command: Vec<u8>, 
-        tx_data: Vec<u8>, 
+        tx_command: Vec<u64>, 
+        tx_data: Vec<u64>, 
         max_rx_words: Option<u32>, 
         csdc_gpio_dev: &str,
-        cs_gpio_line_no: u8,
         dc_gpio_line_no: u8,
         command_mode_active_high: bool,
-        cs_active_high: bool) -> Result<Vec<u8>, BusError> {
-        let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
+    ) -> Result<Vec<u64>, BusError> {
+        let mut return_vec: Vec<u64> = vec![0; tx_data.len()];
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
         };
 
-        let mut gpio_dev_path: String = csdc_gpio_dev.to_owned();
-        gpio_dev_path.push_str("\0");
-        let a: &CStr = CStr::from_bytes_with_nul(gpio_dev_path.as_bytes()).unwrap();
+        // let mut gpio_dev_path: String = csdc_gpio_dev.to_owned();
+        // gpio_dev_path.push_str("\0");
+        // let a: &CStr = CStr::from_bytes_with_nul(gpio_dev_path.as_bytes()).unwrap();
+        let dev_path = PathBuf::from(csdc_gpio_dev);
+        let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
+        let path_string_with_null_ptr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
 
         let op_result : u8 = unsafe {
             transfer_8_bit_DC_on_fd(
                 self.c_fd.clone(),
-                a.as_ptr(),
-                cs_gpio_line_no,
+                path_string_with_null_ptr,
                 dc_gpio_line_no,
                 tx_command.as_ptr(), 
                 tx_command.len() as u32,
                 tx_data.as_ptr(), 
                 tx_data.len() as u32,
                 command_mode_active_high,
-                cs_active_high,
                 return_vec.as_mut_ptr(), 
                 max_rx_words_val,
                 self.delay_us, 
@@ -254,11 +252,10 @@ impl SpiBus {
             )
         };
 
-        match op_result {
-            0 => Ok(return_vec),
-            1 => Err(BusError::CouldNotSendMessage),
-            2 => Err(BusError::CouldNotOpenFile),
-            _ => unreachable!(),
+        if op_result==0 {
+            Ok(return_vec)
+        } else {
+            panic!("I got {:?}", op_result);
         }
     }
 }
@@ -266,6 +263,7 @@ impl SpiBus {
 // destructor trait, used to make sure fd is properly close on fd side
 impl Drop for SpiBus {
     fn drop(&mut self) {
+        println!("Closing fd");
        unsafe {
             close_dev_fd(&mut self.c_fd);
        };
@@ -363,22 +361,36 @@ mod test {
             }
         }
 
-        let command: Vec<u8> = vec![170];
-        let data: Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
+        let command:  Vec<u64> = vec![170];
+        let command2: Vec<u64> = vec![170];
+        let data:  Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
+        let data2: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
 
 
         let result = spi_dev.dc_transation( 
             command, 
             data, 
             None, 
-            "/dev/gpiochip0",
-            8,
+            "gpiochip0",
             25,
             true,
-            false);
+        );
         match result {
-            Ok(_) => {return Ok(())},
+            Ok(_) => {},
             Err(reason) => {return Err(format!("I errored bc: {:?}", reason))},
         }
+        let result = spi_dev.dc_transation( 
+            command2, 
+            data2, 
+            None, 
+            "gpiochip0",
+            25,
+            true,
+        );
+        match result {
+            Ok(_) => {},
+            Err(reason) => {return Err(format!("I errored bc: {:?}", reason))},
+        }
+        return Ok(())
     }
 }
