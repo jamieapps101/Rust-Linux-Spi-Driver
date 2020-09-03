@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <linux/types.h>
 #include <linux/gpio.h>
+#include <gpiod.h>
 #include <linux/spi/spidev.h>
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
@@ -28,7 +29,7 @@
 // file from the values required to select them
 uint8_t get_dev_fd(const char *device, int32_t *fd) {
     *fd = open(device, O_RDWR);
-    if (fd < 0) {
+    if (fd != NULL) {
         return 1; // indicating could not get a file handle
     }
     return 0;
@@ -144,8 +145,8 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 	struct gpiod_line *cs_line, *dc_line;
     chip = gpiod_chip_open(gpio_dev);
     if (!chip) {return -1;}
-    cs_line = gpiod_chip_get_line(chip, cs_line);
-    dc_line = gpiod_chip_get_line(chip, dc_line);
+    cs_line = (struct gpiod_line*) gpiod_chip_get_line(chip, cs_line_no);
+    dc_line = (struct gpiod_line*) gpiod_chip_get_line(chip, dc_line_no);
 
     if (!cs_line || !dc_line) {
 		gpiod_chip_close(chip);
@@ -171,7 +172,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
     // send command byte(s)
 
     int ret;
-    uint8_t func_return = 0;
+    // uint8_t func_return = 0;
     rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
     rx[rx_words] = 0;
 	struct spi_ioc_transfer tr = {

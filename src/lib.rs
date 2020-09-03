@@ -317,7 +317,7 @@ mod test {
             bit_order: BitOrder::MSB,
         };
         
-        let mut spi_dev : SpiBus;
+        let spi_dev : SpiBus;
         match SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
             Ok(dev) =>  {
                 spi_dev = dev;
@@ -343,6 +343,42 @@ mod test {
             }
         }
         return Ok(())
+    }
 
+    #[test]
+    fn test_dc() -> Result<(), String> {
+        let setup = SpiSetup {
+            spi_mode: SpiMode::SpiMode0,
+            cs_mode: CsMode::CsHigh,
+            bit_order: BitOrder::MSB,
+        };
+
+        let spi_dev : SpiBus;
+        match SpiBus::new("/dev/spidev0.0", 0, 500000, WordLength::EightBit, setup) {
+            Ok(dev) =>  {
+                spi_dev = dev;
+            }
+            Err(reason) => {
+                return Err(format!("could not get dev: {:?}", reason));
+            }
+        }
+
+        let command: Vec<u8> = vec![170];
+        let data: Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
+
+
+        let result = spi_dev.dc_transation( 
+            command, 
+            data, 
+            None, 
+            "/dev/gpiochip0",
+            8,
+            25,
+            true,
+            false);
+        match result {
+            Ok(_) => {return Ok(())},
+            Err(reason) => {return Err(format!("I errored bc: {:?}", reason))},
+        }
     }
 }
