@@ -182,17 +182,30 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 		.speed_hz = speed_hz,
 		.bits_per_word = bits,
 	};
-    
+
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
 	if (ret < 1) {
-        // todo reset dc and cs lines, then re enalbe cs
-        return 4;
-    }
+        // reset dc and cs lines, then re enalbe cs
+        gpiod_line_set_value(cs_line, cs_disable);
+        gpiod_line_set_value(dc_line, 0);
+
+        // re-enable CS
+        int ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
+        if (ioctl_ret == -1) {
+            return 2; // cant get mode
+        }
+        new_mode = mode & (~SPI_NO_CS);
+        ioctl_ret = ioctl(fd, SPI_IOC_WR_MODE, &new_mode);
+        if (ioctl_ret == -1) {
+            return 3; // cant set mode
+        }
+            return 4;
+        }
     // set DC line
     gpiod_line_set_value(dc_line, dc_data);
 
     // send data byte(s)
-    struct spi_ioc_transfer tr = {
+    struct spi_ioc_transfer tr2 = {
 		.tx_buf = (unsigned long)data_tx,
 		.rx_buf = (unsigned long)rx,
 		.len = data_tx_words,
@@ -200,9 +213,23 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 		.speed_hz = speed_hz,
 		.bits_per_word = bits,
 	};
-	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr2);
 	if (ret < 1) {
-        // todo reset dc and cs lines, then re enalbe cs
+        //reset dc and cs lines, then re enalbe cs
+            // unset CS line
+            gpiod_line_set_value(cs_line, cs_disable);
+            gpiod_line_set_value(dc_line, 0);
+
+            // re-enable CS
+            int ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
+            if (ioctl_ret == -1) {
+                return 2; // cant get mode
+            }
+            new_mode = mode & (~SPI_NO_CS);
+            ioctl_ret = ioctl(fd, SPI_IOC_WR_MODE, &new_mode);
+            if (ioctl_ret == -1) {
+                return 3; // cant set mode
+            }
         return 5;
     }
 
@@ -211,7 +238,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
     gpiod_line_set_value(dc_line, 0);
 
     // re-enable CS
-    int ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
+    ioctl_ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
     if (ioctl_ret == -1) {
         return 2; // cant get mode
     }
