@@ -161,39 +161,43 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
     int ret;
     rx = (uint64_t*)calloc((rx_words+1), sizeof(uint64_t));
     rx[rx_words] = 0;
-	struct spi_ioc_transfer tr = {
-		.tx_buf = command_tx,
-		.rx_buf = rx,
-		.len = command_tx_words,
-		.delay_usecs = delay_us,
-		.speed_hz = speed_hz,
-		.bits_per_word = bits,
-        .cs_change = 1,
-	};
+    if (command_tx_words>0) {
+        struct spi_ioc_transfer tr = {
+            .tx_buf = command_tx,
+            .rx_buf = rx,
+            .len = command_tx_words,
+            .delay_usecs = delay_us,
+            .speed_hz = speed_hz,
+            .bits_per_word = bits,
+            .cs_change = 1,
+        };
 
-	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
-	if (ret < 1) {
-        // reset dc line
-        gpiod_line_set_value(dc_line, 0);
-        return 7;
+        ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+        if (ret < 1) {
+            // reset dc line
+            gpiod_line_set_value(dc_line, 0);
+            return 7;
+        }
     }
     // set DC line
     gpiod_line_set_value(dc_line, dc_data);
 
     // send data byte(s)
-    struct spi_ioc_transfer tr2 = {
-		.tx_buf = data_tx,
-		.rx_buf = rx,
-		.len = data_tx_words,
-		.delay_usecs = delay_us,
-		.speed_hz = speed_hz,
-		.bits_per_word = bits,
-        .cs_change = 0,
-	};
-	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr2);
-	if (ret < 1) {
-        gpiod_line_set_value(dc_line, 0);
-        return 10;
+    if(data_tx_words>0) {
+        struct spi_ioc_transfer tr2 = {
+            .tx_buf = data_tx,
+            .rx_buf = rx,
+            .len = data_tx_words,
+            .delay_usecs = delay_us,
+            .speed_hz = speed_hz,
+            .bits_per_word = bits,
+            .cs_change = 0,
+        };
+        ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr2);
+        if (ret < 1) {
+            gpiod_line_set_value(dc_line, 0);
+            return 10;
+        }
     }
 
     gpiod_line_set_value(dc_line, 0);
