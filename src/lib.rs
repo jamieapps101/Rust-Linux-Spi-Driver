@@ -234,6 +234,8 @@ impl SpiBus {
         let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
         let path_string_with_null_ptr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
 
+
+
         let op_result : u8 = unsafe {
             transfer_8_bit_DC_on_fd(
                 self.c_fd.clone(),
@@ -365,8 +367,13 @@ mod test {
         let command2: Vec<u64> = vec![170];
         let data:  Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
         let data2: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
+        let command3:  Vec<u64> = vec![170];
+        let command4: Vec<u64> = vec![];
+        let data3:  Vec<u64> = vec![];
+        let data4: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
 
 
+        println!("test1");
         let result = spi_dev.dc_transaction( 
             command, 
             data, 
@@ -377,8 +384,9 @@ mod test {
         );
         match result {
             Ok(_) => {},
-            Err(reason) => {return Err(format!("I errored bc: {:?}", reason))},
+            Err(reason) => {return Err(format!("test1 I errored bc: {:?}", reason))},
         }
+        println!("test2");
         let result = spi_dev.dc_transaction( 
             command2, 
             data2, 
@@ -389,8 +397,38 @@ mod test {
         );
         match result {
             Ok(_) => {},
-            Err(reason) => {return Err(format!("I errored bc: {:?}", reason))},
+            Err(reason) => {return Err(format!("test2 I errored bc: {:?}", reason))},
         }
+
+        // send a zero data packet
+        println!("test3");
+        match spi_dev.dc_transaction( 
+            command3, 
+            data3, 
+            None, 
+            "gpiochip0",
+            25,
+            true,
+        ) {
+            Ok(_) => {},
+            Err(reason) => {return Err(format!("test3 I errored bc: {:?}", reason))},
+        }
+
+        // send a zero command packet
+        println!("test4");
+        match spi_dev.dc_transaction( 
+            command4, 
+            data4, 
+            None, 
+            "gpiochip0",
+            25,
+            true,
+        ) {
+            Ok(_) => {},
+            Err(reason) => {return Err(format!("test4 I errored bc: {:?}", reason))},
+        }
+
+
         return Ok(())
     }
 }

@@ -192,7 +192,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 	};
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr2);
 	if (ret < 1) {
-            gpiod_line_set_value(dc_line, 0);
+        gpiod_line_set_value(dc_line, 0);
         return 10;
     }
 
