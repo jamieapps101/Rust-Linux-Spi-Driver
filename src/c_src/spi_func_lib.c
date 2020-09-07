@@ -94,8 +94,8 @@ uint8_t transfer_8_bit_on_fd(int32_t fd,
 ) {
     int ret;
     uint8_t func_return = 0;
-    rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
-    rx[rx_words] = 0;
+    // rx = (uint8_t*)calloc((rx_words+1), sizeof(uint8_t));
+    // rx[rx_words] = 0;
 	struct spi_ioc_transfer tr = {
 		.tx_buf = (unsigned long)tx,
 		.rx_buf = (unsigned long)rx,
@@ -159,8 +159,8 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 
     // send command byte(s)
     int ret;
-    rx = (uint64_t*)calloc((rx_words+1), sizeof(uint64_t));
-    rx[rx_words] = 0;
+    // rx = (uint64_t*)calloc((rx_words+1), sizeof(uint64_t));
+    rx[rx_words] = (uint64_t)0;
     if (command_tx_words>0) {
         struct spi_ioc_transfer tr = {
             .tx_buf = command_tx,

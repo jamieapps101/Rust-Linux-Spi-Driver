@@ -221,21 +221,35 @@ impl SpiBus {
         dc_gpio_line_no: u8,
         command_mode_active_high: bool,
     ) -> Result<Vec<u64>, BusError> {
-        let mut return_vec: Vec<u64> = vec![0; tx_data.len()];
+        println!("c");
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
         };
-
+        println!("1");
+        let mut return_vec: Vec<u64> = Vec::with_capacity((max_rx_words_val+1) as usize);
+        for _ in 0..(max_rx_words_val+1) {
+            println!("adding 1");
+            return_vec.push(0);
+        }
+        // let mut return_vec: Vec<u64> = vec![0; max_rx_words_val as usize];
+        println!("2");
+        
         // let mut gpio_dev_path: String = csdc_gpio_dev.to_owned();
         // gpio_dev_path.push_str("\0");
         // let a: &CStr = CStr::from_bytes_with_nul(gpio_dev_path.as_bytes()).unwrap();
         let dev_path = PathBuf::from(csdc_gpio_dev);
+        println!("3");
         let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
+        println!("4");
         let path_string_with_null_ptr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
 
+        println!("d");
+        println!("tx_command: {:?}", tx_command);
+        println!("tx_data: {:?}", tx_data);
+        println!("return_vec: {:?}", return_vec);
 
-
+        
         let op_result : u8 = unsafe {
             transfer_8_bit_DC_on_fd(
                 self.c_fd.clone(),
@@ -253,7 +267,10 @@ impl SpiBus {
                 self.bits.into()
             )
         };
+        println!("there was a result");
 
+        println!("");
+        
         if op_result==0 {
             Ok(return_vec)
         } else {
