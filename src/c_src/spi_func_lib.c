@@ -167,7 +167,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
         .delay_usecs = delay_us,
         .speed_hz = speed_hz,
         .bits_per_word = bits,
-        .cs_change = 1,
+        .cs_change = 0,
     };
     if (command_tx_words>0) {
 
@@ -186,7 +186,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
         tr.tx_buf = data_tx;
         tr.rx_buf = data_tx;
         tr.len = data_tx_words;
-        tr.cs_change = 1;
+        tr.cs_change = 0;
 
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
         if (ret < 1) {
