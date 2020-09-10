@@ -133,7 +133,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
     } else {
         dc_data = !dc_command;
     }
-    // get inst of gpio dev for cs and DC line 
+    // // get inst of gpio dev for cs and DC line 
     struct gpiod_chip *chip;
 	struct gpiod_line *dc_line;
     chip = gpiod_chip_open_by_name(gpio_dev);
@@ -154,17 +154,19 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 		return 15;
 	}
 
-    // set DC line
+    // // set DC line
     gpiod_line_set_value(dc_line, dc_command);
 
-    // send command byte(s)
+    // // send command byte(s)
     int ret;
-    // rx = (uint64_t*)calloc((rx_words+1), sizeof(uint64_t));
-    rx[rx_words] = (uint64_t)0;
+    uint64_t* temp;
+    temp = (uint64_t*)calloc((command_tx_words+1), sizeof(uint64_t));
+    temp[command_tx_words] = (uint64_t)0;
+
     if (command_tx_words>0) {
         struct spi_ioc_transfer tr = {
             .tx_buf = command_tx,
-            .rx_buf = rx,
+            .rx_buf = temp,
             .len = command_tx_words,
             .delay_usecs = delay_us,
             .speed_hz = speed_hz,
@@ -183,6 +185,7 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
     gpiod_line_set_value(dc_line, dc_data);
 
     // send data byte(s)
+    temp[rx_words] = (uint64_t)0;
     if(data_tx_words>0) {
         struct spi_ioc_transfer tr2 = {
             .tx_buf = data_tx,
