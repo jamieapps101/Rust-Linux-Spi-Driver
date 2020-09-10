@@ -24,13 +24,13 @@ extern "C" {
         fd: i32, 
         gpio_dev: *const c_char,
         dc_line_no: u8,
-        command_tx: *const u64,
+        command_tx: *mut u64,
         command_tx_words: u32,
-        data_tx: *const u64,
+        data_tx: *mut u64,
         data_tx_words: u32,
         command_mode_active_high: bool,
-        rx: *mut u64,
-        rx_words: u32,
+        // rx: *mut u64,
+        // rx_words: u32,
         delay_us: u16,
         speed_hz: u32,
         bits: u8
@@ -214,8 +214,8 @@ impl SpiBus {
     }
 
     pub fn dc_transaction(&self, 
-        tx_command: Vec<u64>, 
-        tx_data: Vec<u64>, 
+        mut tx_command: Vec<u64>, 
+        mut tx_data: Vec<u64>, 
         max_rx_words: Option<u32>, 
         csdc_gpio_dev: &str,
         dc_gpio_line_no: u8,
@@ -227,11 +227,13 @@ impl SpiBus {
             None => 0,
         };
         println!("1");
-        let mut return_vec: Vec<u64> = Vec::with_capacity((max_rx_words_val+1) as usize);
-        for _ in 0..(max_rx_words_val+1) {
-            println!("adding 1");
-            return_vec.push(0);
-        }
+        // let mut return_vec: Vec<u64> = Vec::with_capacity((max_rx_words_val+1) as usize);
+        let mut return_vec: Vec<u64> = vec![1; (max_rx_words_val+4) as usize];
+        return_vec[(max_rx_words_val +3) as usize] = 0;
+        // for _ in 0..(max_rx_words_val+1) {
+        //     println!("adding 1");
+        //     return_vec.push(0);
+        // }
         // let mut return_vec: Vec<u64> = vec![0; max_rx_words_val as usize];
         println!("2");
         
@@ -249,30 +251,44 @@ impl SpiBus {
         println!("tx_data: {:?}", tx_data);
         println!("return_vec: {:?}", return_vec);
 
+        // split vec into parts
+        // let return_vec_capacity = return_vec.capacity();
+        // let return_vec_len = return_vec.len();
+        // let return_vec_ptr = return_vec.as_mut_ptr();
+        // let return_vec_ptr_clone = return_vec_ptr.clone();
+
+        // let new_vec : Vec<u64>;
         
         let op_result : u8 = unsafe {
+            // let temp_vec : Vec<u64>;
             transfer_8_bit_DC_on_fd(
                 self.c_fd.clone(),
                 path_string_with_null_ptr,
                 dc_gpio_line_no,
-                tx_command.as_ptr(), 
+                tx_command.as_mut_ptr(), 
                 tx_command.len() as u32,
-                tx_data.as_ptr(), 
+                tx_data.as_mut_ptr(), 
                 tx_data.len() as u32,
                 command_mode_active_high,
-                return_vec.as_mut_ptr(), 
-                max_rx_words_val,
+                // return_vec_ptr_clone, 
+                // max_rx_words_val,
                 self.delay_us, 
                 self.speed_hz, 
                 self.bits.into()
             )
+            // temp_vec = Vec::from_raw_parts(return_vec_ptr, return_vec_len, return_vec_capacity);
+            // new_vec = temp_vec.clone();
+            // temp
         };
-        println!("there was a result");
+
+        
+        println!("there was a result: {:?}", op_result);
 
         println!("");
+        println!("tx_data: {:?}", tx_data);
         
         if op_result==0 {
-            Ok(return_vec)
+            Ok(tx_data)
         } else {
             panic!("I got {:?}", op_result);
         }
