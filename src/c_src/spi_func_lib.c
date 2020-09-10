@@ -159,20 +159,17 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
 
     // // send command byte(s)
     int ret;
-    // uint64_t* temp;
-    // temp = (uint64_t*)calloc((command_tx_words+1), sizeof(uint64_t));
-    // temp[command_tx_words] = (uint64_t)0;
 
+    struct spi_ioc_transfer tr = {
+        .tx_buf = command_tx,
+        .rx_buf = command_tx,
+        .len = command_tx_words,
+        .delay_usecs = delay_us,
+        .speed_hz = speed_hz,
+        .bits_per_word = bits,
+        .cs_change = 1,
+    };
     if (command_tx_words>0) {
-        struct spi_ioc_transfer tr = {
-            .tx_buf = command_tx,
-            .rx_buf = command_tx,
-            .len = command_tx_words,
-            .delay_usecs = delay_us,
-            .speed_hz = speed_hz,
-            .bits_per_word = bits,
-            .cs_change = 1,
-        };
 
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
         if (ret < 1) {
@@ -181,23 +178,17 @@ uint8_t transfer_8_bit_DC_on_fd(int32_t fd,
             return 7;
         }
     }
-    // free(temp);
     // set DC line
     gpiod_line_set_value(dc_line, dc_data);
 
     // send data byte(s)
-    // rx[rx_words] = (uint64_t)0;
     if(data_tx_words>0) {
-        struct spi_ioc_transfer tr2 = {
-            .tx_buf = data_tx,
-            .rx_buf = data_tx,
-            .len = data_tx_words,
-            .delay_usecs = delay_us,
-            .speed_hz = speed_hz,
-            .bits_per_word = bits,
-            .cs_change = 0,
-        };
-        ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr2);
+        tr.tx_buf = data_tx;
+        tr.rx_buf = data_tx;
+        tr.len = data_tx_words;
+        tr.cs_change = 0;
+
+        ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
         if (ret < 1) {
             gpiod_line_set_value(dc_line, 0);
             return 10;
