@@ -221,46 +221,16 @@ impl SpiBus {
         dc_gpio_line_no: u8,
         command_mode_active_high: bool,
     ) -> Result<Vec<u64>, BusError> {
-        println!("c");
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
         };
-        println!("1");
-        // let mut return_vec: Vec<u64> = Vec::with_capacity((max_rx_words_val+1) as usize);
         let mut return_vec: Vec<u64> = vec![1; (max_rx_words_val+4) as usize];
         return_vec[(max_rx_words_val +3) as usize] = 0;
-        // for _ in 0..(max_rx_words_val+1) {
-        //     println!("adding 1");
-        //     return_vec.push(0);
-        // }
-        // let mut return_vec: Vec<u64> = vec![0; max_rx_words_val as usize];
-        println!("2");
-        
-        // let mut gpio_dev_path: String = csdc_gpio_dev.to_owned();
-        // gpio_dev_path.push_str("\0");
-        // let a: &CStr = CStr::from_bytes_with_nul(gpio_dev_path.as_bytes()).unwrap();
         let dev_path = PathBuf::from(csdc_gpio_dev);
-        println!("3");
         let path_string_with_null: String = dev_path.clone().into_os_string().into_string().unwrap()+"\0";
-        println!("4");
         let path_string_with_null_ptr = CStr::from_bytes_with_nul(path_string_with_null.as_str().as_bytes()).unwrap().as_ptr();
-
-        println!("d");
-        println!("tx_command: {:?}", tx_command);
-        println!("tx_data: {:?}", tx_data);
-        println!("return_vec: {:?}", return_vec);
-
-        // split vec into parts
-        // let return_vec_capacity = return_vec.capacity();
-        // let return_vec_len = return_vec.len();
-        // let return_vec_ptr = return_vec.as_mut_ptr();
-        // let return_vec_ptr_clone = return_vec_ptr.clone();
-
-        // let new_vec : Vec<u64>;
-        
         let op_result : u8 = unsafe {
-            // let temp_vec : Vec<u64>;
             transfer_8_bit_DC_on_fd(
                 self.c_fd.clone(),
                 path_string_with_null_ptr,
@@ -270,23 +240,11 @@ impl SpiBus {
                 tx_data.as_mut_ptr(), 
                 tx_data.len() as u32,
                 command_mode_active_high,
-                // return_vec_ptr_clone, 
-                // max_rx_words_val,
                 self.delay_us, 
                 self.speed_hz, 
                 self.bits.into()
             )
-            // temp_vec = Vec::from_raw_parts(return_vec_ptr, return_vec_len, return_vec_capacity);
-            // new_vec = temp_vec.clone();
-            // temp
         };
-
-        
-        println!("there was a result: {:?}", op_result);
-
-        println!("");
-        println!("tx_data: {:?}", tx_data);
-        
         if op_result==0 {
             Ok(tx_data)
         } else {
