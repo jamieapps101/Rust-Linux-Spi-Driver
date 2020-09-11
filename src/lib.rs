@@ -12,8 +12,8 @@ extern "C" {
     fn get_dev_fd(device: *const c_char, fd: *mut i32) -> u8;
     fn set_mode_on_fd(fd: i32, encoded_mode: u8) -> u8;
     fn transfer_8_bit_on_fd(fd: i32, 
-        tx: *const u64, tx_words: u32, 
-        rx: *mut u64, 
+        tx: *const u8, tx_words: u32, 
+        rx: *mut u8, 
         rx_words: u32, 
         delay_us: u16 , 
         speed_hz: u32, 
@@ -24,9 +24,9 @@ extern "C" {
         fd: i32, 
         gpio_dev: *const c_char,
         dc_line_no: u8,
-        command_tx: *mut u64,
+        command_tx: *mut u8,
         command_tx_words: u32,
-        data_tx: *mut u64,
+        data_tx: *mut u8,
         data_tx_words: u32,
         command_mode_active_high: bool,
         // rx: *mut u64,
@@ -188,8 +188,8 @@ impl SpiBus {
         });
     }
 
-    pub fn transaction(&self, tx_data: Vec<u64>, max_rx_words: Option<u32>) -> Result<Vec<u64>, BusError> {
-        let mut return_vec: Vec<u64> = vec![0; tx_data.len()];
+    pub fn transaction(&self, tx_data: Vec<u8>, max_rx_words: Option<u32>) -> Result<Vec<u8>, BusError> {
+        let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
@@ -214,13 +214,13 @@ impl SpiBus {
     }
 
     pub fn dc_transaction(&self, 
-        mut tx_command: Vec<u64>, 
-        mut tx_data: Vec<u64>, 
+        mut tx_command: Vec<u8>, 
+        mut tx_data: Vec<u8>, 
         max_rx_words: Option<u32>, 
         csdc_gpio_dev: &str,
         dc_gpio_line_no: u8,
         command_mode_active_high: bool,
-    ) -> Result<Vec<u64>, BusError> {
+    ) -> Result<Vec<u8>, BusError> {
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
@@ -318,7 +318,7 @@ mod test {
             }
         }
 
-        let data: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
+        let data: Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
 
         match spi_dev.transaction(data.clone(), None) {
             Ok(_) => {},
@@ -354,14 +354,14 @@ mod test {
             }
         }
 
-        let command:  Vec<u64> = vec![170];
-        let command2: Vec<u64> = vec![170];
-        let data:  Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
-        let data2: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
-        let command3:  Vec<u64> = vec![170];
-        let command4: Vec<u64> = vec![];
-        let data3:  Vec<u64> = vec![];
-        let data4: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
+        let command:  Vec<u8> = vec![170];
+        let command2: Vec<u8> = vec![170];
+        let data:     Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
+        let data2:    Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
+        let command3: Vec<u8> = vec![170];
+        let command4: Vec<u8> = vec![];
+        let data3:    Vec<u8> = vec![];
+        let data4:    Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
 
 
         println!("test1");
