@@ -12,8 +12,8 @@ extern "C" {
     fn get_dev_fd(device: *const c_char, fd: *mut i32) -> u8;
     fn set_mode_on_fd(fd: i32, encoded_mode: u8) -> u8;
     fn transfer_8_bit_on_fd(fd: i32, 
-        tx: *const u8, tx_words: u32, 
-        rx: *mut u8, 
+        tx: *const u64, tx_words: u32, 
+        rx: *mut u64, 
         rx_words: u32, 
         delay_us: u16 , 
         speed_hz: u32, 
@@ -188,8 +188,8 @@ impl SpiBus {
         });
     }
 
-    pub fn transaction(&self, tx_data: Vec<u8>, max_rx_words: Option<u32>) -> Result<Vec<u8>, BusError> {
-        let mut return_vec: Vec<u8> = vec![0; tx_data.len()];
+    pub fn transaction(&self, tx_data: Vec<u64>, max_rx_words: Option<u32>) -> Result<Vec<u64>, BusError> {
+        let mut return_vec: Vec<u64> = vec![0; tx_data.len()];
         let max_rx_words_val: u32 = match max_rx_words {
             Some(val) => val,
             None => 0,
@@ -318,7 +318,7 @@ mod test {
             }
         }
 
-        let data: Vec<u8> = vec![0,0x55,2,0xff,128,0x69];
+        let data: Vec<u64> = vec![0,0x55,2,0xff,128,0x69];
 
         match spi_dev.transaction(data.clone(), None) {
             Ok(_) => {},
